@@ -10,6 +10,9 @@
 *.dll
 *.dylib
 
+ImageDSP
+Spec/
+
 # Build folders
 build/
 build-*/
