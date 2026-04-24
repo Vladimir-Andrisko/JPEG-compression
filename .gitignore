@@ -10,6 +10,21 @@
 *.dll
 *.dylib
 
+# Build folders
+build/
+build-*/
+debug/
+release/
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake-build-*/
+
+# Executables
+*.out
+*.exe
+
 # Qt-es
 object_script.*.Release
 object_script.*.Debug
