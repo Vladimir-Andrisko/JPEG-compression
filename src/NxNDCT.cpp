@@ -88,8 +88,8 @@ void IDCT(const short input[], char output[], int N, double* DCTKernel)
 
 void extendBorders(char* input, int xSize, int ySize, int N, char** p_output, int* newXSize, int* newYSize)
 {
-    int deltaX = N-xSize%N;
-    int deltaY = N-ySize%N;
+    int deltaX = (N-xSize%N) % N;
+    int deltaY = (N-ySize%N) % N;
 
     *newXSize = xSize+deltaX;
     *newYSize = ySize+deltaY;

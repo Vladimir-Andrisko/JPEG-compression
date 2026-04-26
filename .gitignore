@@ -14,8 +14,6 @@ ImageDSP
 Spec/
 
 # Build folders
-build/
-build-*/
 debug/
 release/
 

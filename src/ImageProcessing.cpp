@@ -14,9 +14,12 @@ void imageProcessingFun(const QString& progName, QImage& outImgs, const QImage& 
 
 	/* Create buffers for YUV image */
 
-    uchar * Y_buff = new uchar[inImgs.width()*inImgs.height()];
-    char* U_buff = new char[inImgs.width()*inImgs.height()/4];
-    char* V_buff = new char[inImgs.width()*inImgs.height()/4];
+    int width = inImgs.width();
+    int height = inImgs.height();
+
+    uchar * Y_buff = new uchar[width * height];
+    char* U_buff = new char[width*height/4];
+    char* V_buff = new char[width*height/4];
 
 	/* Create empty output image */
 	outImgs = QImage(inImgs.width(), inImgs.height(), inImgs.format());
@@ -26,13 +29,11 @@ void imageProcessingFun(const QString& progName, QImage& outImgs, const QImage& 
 
     if(progName == QString("JPEG Encoder"))
 	{	
-		/* Perform NxN DCT */
-        //performJPEGEncoding(Y_buff, U_buff, V_buff, X_SIZE, Y_SIZE, params[0]);
+        performJPEGEncoding(Y_buff, U_buff, V_buff, width, height, params[0]);
 
 	}
-
     /* Convert YUV image back to RGB */
-    YUV420toRGB(Y_buff, U_buff, V_buff, inImgs.width(), inImgs.height(), outImgs.bits());
+    YUV420toRGB(Y_buff, U_buff, V_buff, width, height, outImgs.bits());
 
     outImgs = QImage("example.jpg");
 

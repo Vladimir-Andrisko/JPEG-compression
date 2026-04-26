@@ -198,8 +198,8 @@ void procesing_YUV422(uchar Y_buff[], char U_buff[], char V_buff[], int x, int y
 /*******************************************************************************************************************************/
 void RGBtoYUV420(const uchar rgbImg[], int x_size, int y_size, uchar Y_buff[], char U_buff[], char V_buff[])
 {
-	uchar R, G, B;
-    uchar R1, G1, B1, R2, G2, B2, R3, G3, B3;
+    uint8_t R, G, B;
+    uint8_t R1, G1, B1, R2, G2, B2, R3, G3, B3;
 
     for(int y = 0; y < y_size; y++){
         for(int x = 0; x < x_size; x++){
@@ -208,7 +208,10 @@ void RGBtoYUV420(const uchar rgbImg[], int x_size, int y_size, uchar Y_buff[], c
             B = rgbImg[(y*x_size + x)*3 + 2];
 
             double Y = 0.299*R + 0.587*G + 0.114*B;
-            Y_buff[y*x_size + x] = (uchar)Y;
+            if(Y > 255) Y = 255;
+            if(Y < 0) Y = 0;
+
+            Y_buff[y*x_size + x] = (uint8_t)Y;
         }
     }
 
@@ -219,28 +222,28 @@ void RGBtoYUV420(const uchar rgbImg[], int x_size, int y_size, uchar Y_buff[], c
             B = rgbImg[(y*x_size + x)*3 + 2];
 
             double U1 = -0.14713*R - 0.28886*G + 0.436*B;
-            double V1 = 0.615*R - 0.51499*G - 1.0001*B;
+            double V1 = 0.615*R - 0.51499*G - 0.10001*B;
 
             R1 = rgbImg[(y*x_size + (x+1))*3];
             G1 = rgbImg[(y*x_size + (x+1))*3 + 1];
             B1 = rgbImg[(y*x_size + (x+1))*3 + 2];
 
             double U2 = -0.14713*R1 - 0.28886*G1 + 0.436*B1;
-            double V2 = 0.615*R1 - 0.51499*G1 - 1.0001*B1;
+            double V2 = 0.615*R1 - 0.51499*G1 - 0.10001*B1;
 
             R2 = rgbImg[((y+1)*x_size + x)*3];
             G2 = rgbImg[((y+1)*x_size + x)*3 + 1];
             B2 = rgbImg[((y+1)*x_size + x)*3 + 2];
 
             double U3 = -0.14713*R2 - 0.28886*G2 + 0.436*B2;
-            double V3 = 0.615*R2 - 0.51499*G2 - 1.0001*B2;
+            double V3 = 0.615*R2 - 0.51499*G2 - 0.10001*B2;
 
             R3 = rgbImg[((y+1)*x_size + (x+1))*3];
             G3 = rgbImg[((y+1)*x_size + (x+1))*3 + 1];
             B3 = rgbImg[((y+1)*x_size + (x+1))*3 + 2];
 
             double U4 = -0.14713*R3 - 0.28886*G3 + 0.436*B3;
-            double V4 = 0.615*R3 - 0.51499*G3 - 1.0001*B3;
+            double V4 = 0.615*R3 - 0.51499*G3 - 0.10001*B3;
 
             double U = (U1 + U2 + U3 + U4)/4;
             double V = (V1 + V2 + V3 + V4)/4;
@@ -251,8 +254,8 @@ void RGBtoYUV420(const uchar rgbImg[], int x_size, int y_size, uchar Y_buff[], c
             if (V > 127) V = 127;
             if (V < -128) V = -128;
 
-            U_buff[(y/2)*(x_size/2) + x/2] = (uchar)U;
-            V_buff[(y/2)*(x_size/2) + x/2] = (uchar)V;
+            U_buff[(y/2)*(x_size/2) + x/2] = (char)U;
+            V_buff[(y/2)*(x_size/2) + x/2] = (char)V;
         }
     }
 }
@@ -262,11 +265,13 @@ void YUV420toRGB(const uchar Y_buff[], const char U_buff[], const char V_buff[],
     double Rd,Gd,Bd;
 	double Y, U, V;
 
-    for(int y = 0; y < h; y += 2){
-        for(int x = 0; x < w; x += 2){
+    for(int y = 0; y < h-1; y += 2){
+        for(int x = 0; x < w-1; x += 2){
 
-            U = U_buff[(y/2)*(w/2) + (x/2)];
-            V = V_buff[(y/2)*(w/2) + (x/2)];
+            int idx = (y/2)*(w/2) + (x/2);
+
+            U = U_buff[idx];
+            V = V_buff[idx];
 
             for(int yb = 0; yb < 2; yb++){
                 for(int xb = 0; xb < 2; xb++){
@@ -288,9 +293,9 @@ void YUV420toRGB(const uchar Y_buff[], const char U_buff[], const char V_buff[],
 
                     int outIdx = ((y+yb)*w + (x+xb))*3;
 
-                    rgbImg[outIdx] = (uchar)Rd;
-                    rgbImg[outIdx + 1] = (uchar)Gd;
-                    rgbImg[outIdx + 2] = (uchar)Bd;
+                    rgbImg[outIdx] = (uint8_t)Rd;
+                    rgbImg[outIdx + 1] = (uint8_t)Gd;
+                    rgbImg[outIdx + 2] = (uint8_t)Bd;
                 }
             }
         }

@@ -7,7 +7,7 @@
 
 #define DEBUG(x) do{ qDebug() << #x << " = " << x;}while(0)
 
-
+enum zigzag_option{QUANT = 0, DC = 1};
 
 // quantization tables from JPEG Standard, Annex K
 uint8_t QuantLuminance[8*8] =
@@ -44,7 +44,7 @@ static char quantizationMatrix[64] =
 struct imageProperties{
     int width;
     int height;
-    int16_t* coeffs;
+    int16_t coeffs[8*8];
 };
 
 
@@ -99,21 +99,192 @@ uint8_t quantQuality(uint8_t quant, uint8_t quality) {
 
 static void doZigZag(int16_t block[], uint8_t quantizationBlock[], int N, int DCTorQuantization)
 {
-    /* TO DO */
+
+    // DCT
+    if(DCTorQuantization){
+        uint16_t* temp = new uint16_t[N*N];
+
+        int x = 0, y = 0;
+        bool up = true;
+
+        for (int i = 0; i < N*N; i++) {
+            temp[i] = block[y*N + x];
+
+            if(up){
+                if(x == N-1){
+                    y++;
+                    up = false;
+                }else if(y == 0){
+                    x++;
+                    up = false;
+                }else{
+                    x++;
+                    y--;
+                }
+            }else{
+                if(y == N-1){
+                    x++;
+                    up = true;
+                }else if(x == 0){
+                    y++;
+                    up = true;
+                }else{
+                    x--;
+                    y++;
+                }
+            }
+        }
+
+        for(int i = 0; i < N*N; i++){
+            block[i] = temp[i];
+        }
+
+        delete[] temp;
+
+    }else{  // Quantization
+        uint8_t* temp = new uint8_t[N*N];
+
+        int x = 0, y = 0;
+        bool up = true;
+
+        for (int i = 0; i < N*N; i++) {
+            temp[i] = quantizationBlock[y*N + x];
+
+            if(up){
+                if(x == N-1){
+                    y++;
+                    up = false;
+                }else if(y == 0){
+                    x++;
+                    up = false;
+                }else{
+                    x++;
+                    y--;
+                }
+            }else{
+                if(y == N-1){
+                    x++;
+                    up = true;
+                }else if(x == 0){
+                    y++;
+                    up = true;
+                }else{
+                    x--;
+                    y++;
+                }
+            }
+        }
+
+        for(int i = 0; i < N*N; i++){
+            quantizationBlock[i] = temp[i];
+        }
+
+        delete[] temp;
+    }
 }
 
 /* perform DCT */
 imageProperties performDCT(char input[], int xSize, int ySize, int N, uint8_t quality, bool quantType)
 {
-	// TO DO
+    double *kernel = new double[N*N];
+
+    imageProperties output;
+    output.width = xSize;
+    output.height = ySize;
+
+    GenerateDCTmatrix(kernel, N);
+    if(quantType){
+        DCT(input, output.coeffs, N, kernel);
+    }else{
+        DCTUandV(input, output.coeffs, N, kernel);
+    }
+
+    if(quantType){
+        for(int i = 0; i < N*N; i++){
+            output.coeffs[i] *= (int16_t)(QuantLuminance[i] + 0.5);
+        }
+    }else{
+        for(int i = 0; i < N*N; i++){
+            output.coeffs[i] *= (int16_t)(QuantChrominance[i] + 0.5);
+        }
+    }
+
+    doZigZag(output.coeffs, nullptr, N, DC);
+
+    delete[] kernel;
+    return output;
+}
+
+inline void copyBlock(char *block, char* input, int x, int y, int width, int N){
+    for(int i = 0; i < N; i++){
+        for(int j = 0; j < N; j++){
+            block[i*N + j] = input[(y+i)*width + x+j];
+        }
+    }
 }
 
 //JPEGBitStreamWriter streamer("example.jpg");
 void performJPEGEncoding(uchar Y_buff[], char U_buff[], char V_buff[], int xSize, int ySize, int quality)
 {
 	DEBUG(quality);
-	
-	
     auto s = new JPEGBitStreamWriter("example.jpg");
-	// TO DO
+    const int N = 8;
+
+    for (int i = 0; i < 64; i++) {
+        QuantLuminance[i] = quantQuality(QuantLuminance[i], quality);
+        QuantChrominance[i] = quantQuality(QuantChrominance[i], quality);
+    }
+
+    uint8_t *temp_quant_lum = new uint8_t[N*N];
+    uint8_t *temp_quant_chrom = new uint8_t[N*N];
+    for(int i = 0; i < N*N; i++){
+        temp_quant_lum[i] = QuantLuminance[i];
+        temp_quant_chrom[i] = QuantChrominance[i];
+    }
+
+    doZigZag(nullptr, temp_quant_lum, N, QUANT);
+    doZigZag(nullptr, temp_quant_chrom, N, QUANT);
+
+    s->writeHeader();
+    s->writeQuantizationTables(temp_quant_lum, temp_quant_chrom);
+    s->writeImageInfo(xSize, ySize);
+    s->writeHuffmanTables();
+
+    // Blocks of Y U V
+    int newXSize, newYSize, dump;
+    char* Y_buff_extended = nullptr;
+    char* U_buff_extended = nullptr;
+    char* V_buff_extended = nullptr;
+
+    extendBorders((char*)Y_buff, xSize, ySize, 16, &Y_buff_extended, &newXSize, &newYSize);
+    extendBorders(U_buff, xSize, ySize, 8, &U_buff_extended, &dump, &dump);
+    extendBorders(V_buff, xSize, ySize, 8, &V_buff_extended, &dump, &dump);
+
+    for(int y = 0; y < newYSize; y += 16){
+        for(int x = 0; x < newXSize; x += 16){
+            char block[N*N];
+
+            copyBlock(block, Y_buff_extended, x, y, newXSize, N);
+            s->writeBlockY(performDCT(block, N, N, N, quality, 1).coeffs);
+
+            copyBlock(block, Y_buff_extended, x+8, y, newXSize, N);
+            s->writeBlockY(performDCT(block, N, N, N, quality, 1).coeffs);
+
+            copyBlock(block, Y_buff_extended, x, y+8, newXSize, N);
+            s->writeBlockY(performDCT(block, N, N, N, quality, 1).coeffs);
+
+            copyBlock(block, Y_buff_extended, x+8, y+8, newXSize, N);
+            s->writeBlockY(performDCT(block, N, N, N, quality, 1).coeffs);
+
+            copyBlock(block, U_buff_extended, x/2, y/2, newXSize/2, N);
+            s->writeBlockU(performDCT(block, N, N, N, quality, 0).coeffs);
+
+            copyBlock(block, V_buff_extended, x/2, y/2, newXSize/2, N);
+            s->writeBlockV(performDCT(block, N, N, N, quality, 0).coeffs);
+        }
+    }
+
+    s->finishStream();
+    delete[] temp_quant_lum;
+    delete[] temp_quant_chrom;
 }
