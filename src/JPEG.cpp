@@ -102,7 +102,7 @@ static void doZigZag(int16_t block[], uint8_t quantizationBlock[], int N, int DC
 
     // DCT
     if(DCTorQuantization){
-        uint16_t* temp = new uint16_t[N*N];
+        int16_t* temp = new int16_t[N*N];
 
         int x = 0, y = 0;
         bool up = true;
@@ -193,19 +193,16 @@ imageProperties performDCT(char input[], int xSize, int ySize, int N, uint8_t qu
     output.height = ySize;
 
     GenerateDCTmatrix(kernel, N);
-    if(quantType){
-        DCT(input, output.coeffs, N, kernel);
-    }else{
-        DCTUandV(input, output.coeffs, N, kernel);
-    }
+
+    DCTUandV(input, output.coeffs, N, kernel);
 
     if(quantType){
         for(int i = 0; i < N*N; i++){
-            output.coeffs[i] *= (int16_t)(QuantLuminance[i] + 0.5);
+            output.coeffs[i] = round(output.coeffs[i] / QuantLuminance[i]);
         }
     }else{
         for(int i = 0; i < N*N; i++){
-            output.coeffs[i] *= (int16_t)(QuantChrominance[i] + 0.5);
+            output.coeffs[i] = round(output.coeffs[i] / QuantChrominance[i]);
         }
     }
 
@@ -230,10 +227,10 @@ void performJPEGEncoding(uchar Y_buff[], char U_buff[], char V_buff[], int xSize
     auto s = new JPEGBitStreamWriter("example.jpg");
     const int N = 8;
 
-    for (int i = 0; i < 64; i++) {
+    /*for (int i = 0; i < 64; i++) {
         QuantLuminance[i] = quantQuality(QuantLuminance[i], quality);
         QuantChrominance[i] = quantQuality(QuantChrominance[i], quality);
-    }
+    }*/
 
     uint8_t *temp_quant_lum = new uint8_t[N*N];
     uint8_t *temp_quant_chrom = new uint8_t[N*N];
@@ -256,14 +253,26 @@ void performJPEGEncoding(uchar Y_buff[], char U_buff[], char V_buff[], int xSize
     char* U_buff_extended = nullptr;
     char* V_buff_extended = nullptr;
 
-    extendBorders((char*)Y_buff, xSize, ySize, 16, &Y_buff_extended, &newXSize, &newYSize);
-    extendBorders(U_buff, xSize, ySize, 8, &U_buff_extended, &dump, &dump);
-    extendBorders(V_buff, xSize, ySize, 8, &V_buff_extended, &dump, &dump);
+    char* Y_temp = new char[xSize*ySize];
+
+    for(int i =0; i < xSize*ySize; i++){
+        Y_temp[i] = (char)(Y_buff[i] - 128);
+    }
+
+    extendBorders(Y_temp, xSize, ySize, 16, &Y_buff_extended, &newXSize, &newYSize);
+    delete[] Y_temp;
+    extendBorders(U_buff, xSize/2, ySize/2, 8, &U_buff_extended, &dump, &dump);
+    extendBorders(V_buff, xSize/2, ySize/2, 8, &V_buff_extended, &dump, &dump);
+
+    DEBUG(xSize);
+    DEBUG(ySize);
+    DEBUG(newXSize);
+    DEBUG(newYSize);
+
+    char block[N*N];
 
     for(int y = 0; y < newYSize; y += 16){
         for(int x = 0; x < newXSize; x += 16){
-            char block[N*N];
-
             copyBlock(block, Y_buff_extended, x, y, newXSize, N);
             s->writeBlockY(performDCT(block, N, N, N, quality, 1).coeffs);
 
