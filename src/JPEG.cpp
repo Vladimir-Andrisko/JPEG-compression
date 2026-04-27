@@ -29,17 +29,8 @@ uint8_t QuantChrominance[8*8] =
       99, 99, 99, 99, 99, 99, 99, 99,
       99, 99, 99, 99, 99, 99, 99, 99 };
 
-static char quantizationMatrix[64] =
-{
-    16, 11, 10, 16, 24, 40, 51, 61,
-    12, 12, 14, 19, 26, 58, 60, 55,
-    14, 13, 16, 24, 40, 57, 69, 56,
-    14, 17, 22, 29, 51, 87, 80, 62,
-    18, 22, 37, 56, 68, 109, 103, 77,
-    24, 35, 55, 64, 81, 104, 113, 92,
-    49, 64, 78, 87, 103, 121, 120, 101,
-    72, 92, 95, 98, 112, 100, 103, 99
-};
+uint8_t QuantLuminanceQuality[64];
+uint8_t QuantChrominanceQuality[64];
 
 struct imageProperties{
     int width;
@@ -82,7 +73,7 @@ void DCTUandV(const char input[], int16_t output[], int N, double* DCTKernel)
 
     for(int i = 0; i < N*N; i++)
     {
-        output[i] = floor(DCTCoefficients[i]+0.5);
+        output[i] = round(DCTCoefficients[i]);
     }
 
     delete[] temp;
@@ -184,31 +175,25 @@ static void doZigZag(int16_t block[], uint8_t quantizationBlock[], int N, int DC
 }
 
 /* perform DCT */
-imageProperties performDCT(char input[], int xSize, int ySize, int N, uint8_t quality, bool quantType)
+imageProperties performDCT(char input[], int xSize, int ySize, int N, double *kernel, bool quantType)
 {
-    double *kernel = new double[N*N];
-
     imageProperties output;
     output.width = xSize;
     output.height = ySize;
-
-    GenerateDCTmatrix(kernel, N);
 
     DCTUandV(input, output.coeffs, N, kernel);
 
     if(quantType){
         for(int i = 0; i < N*N; i++){
-            output.coeffs[i] = round(output.coeffs[i] / QuantLuminance[i]);
+            output.coeffs[i] = round(output.coeffs[i] / QuantLuminanceQuality[i]);
         }
     }else{
         for(int i = 0; i < N*N; i++){
-            output.coeffs[i] = round(output.coeffs[i] / QuantChrominance[i]);
+            output.coeffs[i] = round(output.coeffs[i] / QuantChrominanceQuality[i]);
         }
     }
 
     doZigZag(output.coeffs, nullptr, N, DC);
-
-    delete[] kernel;
     return output;
 }
 
@@ -223,20 +208,19 @@ inline void copyBlock(char *block, char* input, int x, int y, int width, int N){
 //JPEGBitStreamWriter streamer("example.jpg");
 void performJPEGEncoding(uchar Y_buff[], char U_buff[], char V_buff[], int xSize, int ySize, int quality)
 {
-	DEBUG(quality);
     auto s = new JPEGBitStreamWriter("example.jpg");
     const int N = 8;
 
-    /*for (int i = 0; i < 64; i++) {
-        QuantLuminance[i] = quantQuality(QuantLuminance[i], quality);
-        QuantChrominance[i] = quantQuality(QuantChrominance[i], quality);
-    }*/
+    for (int i = 0; i < 64; i++) {
+        QuantLuminanceQuality[i] = quantQuality(QuantLuminance[i], quality);
+        QuantChrominanceQuality[i] = quantQuality(QuantChrominance[i], quality);
+    }
 
     uint8_t *temp_quant_lum = new uint8_t[N*N];
     uint8_t *temp_quant_chrom = new uint8_t[N*N];
     for(int i = 0; i < N*N; i++){
-        temp_quant_lum[i] = QuantLuminance[i];
-        temp_quant_chrom[i] = QuantChrominance[i];
+        temp_quant_lum[i] = QuantLuminanceQuality[i];
+        temp_quant_chrom[i] = QuantChrominanceQuality[i];
     }
 
     doZigZag(nullptr, temp_quant_lum, N, QUANT);
@@ -259,41 +243,40 @@ void performJPEGEncoding(uchar Y_buff[], char U_buff[], char V_buff[], int xSize
         Y_temp[i] = (char)(Y_buff[i] - 128);
     }
 
-    extendBorders(Y_temp, xSize, ySize, 16, &Y_buff_extended, &newXSize, &newYSize);
+    extendBorders(Y_temp, xSize, ySize, N*2, &Y_buff_extended, &newXSize, &newYSize);
     delete[] Y_temp;
-    extendBorders(U_buff, xSize/2, ySize/2, 8, &U_buff_extended, &dump, &dump);
-    extendBorders(V_buff, xSize/2, ySize/2, 8, &V_buff_extended, &dump, &dump);
 
-    DEBUG(xSize);
-    DEBUG(ySize);
-    DEBUG(newXSize);
-    DEBUG(newYSize);
+    extendBorders(U_buff, xSize/2, ySize/2, N, &U_buff_extended, &dump, &dump);
+    extendBorders(V_buff, xSize/2, ySize/2, N, &V_buff_extended, &dump, &dump);
 
     char block[N*N];
+    double *kernel = new double[N*N];
+    GenerateDCTmatrix(kernel, N);
 
     for(int y = 0; y < newYSize; y += 16){
         for(int x = 0; x < newXSize; x += 16){
             copyBlock(block, Y_buff_extended, x, y, newXSize, N);
-            s->writeBlockY(performDCT(block, N, N, N, quality, 1).coeffs);
+            s->writeBlockY(performDCT(block, N, N, N, kernel, 1).coeffs);
 
             copyBlock(block, Y_buff_extended, x+8, y, newXSize, N);
-            s->writeBlockY(performDCT(block, N, N, N, quality, 1).coeffs);
+            s->writeBlockY(performDCT(block, N, N, N, kernel, 1).coeffs);
 
             copyBlock(block, Y_buff_extended, x, y+8, newXSize, N);
-            s->writeBlockY(performDCT(block, N, N, N, quality, 1).coeffs);
+            s->writeBlockY(performDCT(block, N, N, N, kernel, 1).coeffs);
 
             copyBlock(block, Y_buff_extended, x+8, y+8, newXSize, N);
-            s->writeBlockY(performDCT(block, N, N, N, quality, 1).coeffs);
+            s->writeBlockY(performDCT(block, N, N, N, kernel, 1).coeffs);
 
             copyBlock(block, U_buff_extended, x/2, y/2, newXSize/2, N);
-            s->writeBlockU(performDCT(block, N, N, N, quality, 0).coeffs);
+            s->writeBlockU(performDCT(block, N, N, N, kernel, 0).coeffs);
 
             copyBlock(block, V_buff_extended, x/2, y/2, newXSize/2, N);
-            s->writeBlockV(performDCT(block, N, N, N, quality, 0).coeffs);
+            s->writeBlockV(performDCT(block, N, N, N, kernel, 0).coeffs);
         }
     }
 
     s->finishStream();
     delete[] temp_quant_lum;
     delete[] temp_quant_chrom;
+    delete[] kernel;
 }

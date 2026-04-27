@@ -4,18 +4,6 @@
 
 #define PI 3.14159265359
 
-static char quantizationMatrix[64] =
-{
-    16, 11, 10, 16, 24, 40, 51, 61,
-    12, 12, 14, 19, 26, 58, 60, 55,
-    14, 13, 16, 24, 40, 57, 69, 56,
-    14, 17, 22, 29, 51, 87, 80, 62,
-    18, 22, 37, 56, 68, 109, 103, 77,
-    24, 35, 55, 64, 81, 104, 113, 92,
-    49, 64, 78, 87, 103, 121, 120, 101,
-    72, 92, 95, 98, 112, 100, 103, 99
-};
-
 void GenerateDCTmatrix(double* DCTKernel, int order)
 {
     int i, j;
@@ -79,13 +67,6 @@ void DCT(const char input[], int16_t output[], int N, double* DCTKernel)
     return;
 }
 
-
-
-void IDCT(const short input[], char output[], int N, double* DCTKernel)
-{
-    /* TO DO */
-}
-
 void extendBorders(char* input, int xSize, int ySize, int N, char** p_output, int* newXSize, int* newYSize)
 {
     int deltaX = (N-xSize%N) % N;
@@ -112,12 +93,3 @@ void extendBorders(char* input, int xSize, int ySize, int N, char** p_output, in
 
     *p_output = output;
 }
-
-void cropImage(char* input, int xSize, int ySize, char* output, int newXSize, int newYSize)
-{
-    for (int i=0; i<newYSize; i++)
-    {
-        memcpy(&output[i*(newXSize)], &input[i*(xSize)], newXSize);
-    }
-}
-
