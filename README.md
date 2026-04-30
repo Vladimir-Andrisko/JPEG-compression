@@ -1,2 +1,3 @@
-# JPEG-compression
-Prvi projektni zadatak iz predmeta Algoritmi digitalne obrade slike
+# ImageDSP
+
+Application for practising methods for image processing digital signal processing.
