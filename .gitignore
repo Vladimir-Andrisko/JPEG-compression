@@ -4,3 +4,5 @@ Spec/
 *.o
 Makefile
 *.jpg
+*.pro.user
+ImageDSP
